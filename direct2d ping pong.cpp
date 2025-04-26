@@ -5,7 +5,7 @@
 #include <strsafe.h>
 #include <windowsx.h> // GET_X_LPARAM
 #include <math.h> // fabs
-#include "resource.h" // icon
+
 #define FPS 60
 #define BALLSPEED 0.002
 
@@ -27,8 +27,7 @@ float user_bat_x = 0.1, user_bat_y = 0.5,mouse_x=-1,mouse_y=-1,ball_x=0.5,ball_y
 
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR cmd, int show)
 {
-	WNDCLASS wc = { CS_HREDRAW | CS_VREDRAW,WindowProc,0,0,hInst,(HICON)LoadImage(hInst,MAKEINTRESOURCE(IDI_ICON2),IMAGE_ICON,LR_DEFAULTSIZE,LR_DEFAULTSIZE,LR_SHARED)		
-		,LoadCursor(NULL, IDC_ARROW),NULL,NULL,L"Window" };
+	WNDCLASS wc = { CS_HREDRAW | CS_VREDRAW,WindowProc,0,0,hInst,LoadIcon(NULL,IDI_APPLICATION),LoadCursor(NULL, IDC_ARROW),NULL,NULL,L"Window" };
 	RegisterClass(&wc);
 
 	HWND hwnd = CreateWindow(L"Window", L"Direct2D Ping Pong", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, hInst, NULL);
