@@ -97,6 +97,13 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 		{
 			ResizeD3D(); return 0;
 		}
+		case WM_GETMINMAXINFO:
+		{
+			MINMAXINFO* pMMI = (MINMAXINFO*)lparam;
+			pMMI->ptMinTrackSize.x = 300;
+			pMMI->ptMinTrackSize.y = 300;
+			return 0;
+		}
 		case WM_DESTROY:
 		{
 			PostQuitMessage(0); return 0;
@@ -117,6 +124,8 @@ bool InitD3D()
 	d3dpp.Windowed = TRUE;
 	d3dpp.SwapEffect = D3DSWAPEFFECT_DISCARD;
 	d3dpp.hDeviceWindow = hwnd;
+	d3dpp.EnableAutoDepthStencil = TRUE;
+	d3dpp.AutoDepthStencilFormat = D3DFMT_D16;
 
 	if (FAILED(d3d->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hwnd, D3DCREATE_HARDWARE_VERTEXPROCESSING, &d3dpp, &d3dDevice))) return false;
 		
@@ -140,6 +149,7 @@ void RenderD3D()
 	d3dDevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE); // draw backface 
 
 	d3dDevice->Clear(0, NULL, D3DCLEAR_TARGET, D3DCOLOR_XRGB(0, 0, 100), 1.0f, 0);
+	d3dDevice->Clear(0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
 	d3dDevice->BeginScene();
 
 	d3dDevice->SetFVF(CUSTOMFVF);
@@ -162,6 +172,11 @@ void RenderD3D()
 
 	d3dDevice->SetStreamSource(0, v_buffer, 0, sizeof(CUSTOMVERTEX));
 	d3dDevice->DrawPrimitive(D3DPT_TRIANGLELIST, 0, 2);
+
+	const constbuffer world2 = { { XMMatrixMultiply(XMMatrixRotationY(angle+0.5f),XMMatrixTranslation(1.0f,0.1f,0.0f)) }};
+	d3dDevice->SetTransform(D3DTS_WORLD, (D3DMATRIX*)&world2);
+	d3dDevice->DrawPrimitive(D3DPT_TRIANGLELIST, 0, 2);
+	d3dDevice->SetRenderState(D3DRS_ZENABLE, TRUE);
 
 	d3dDevice->EndScene();
 	d3dDevice->Present(NULL, NULL, NULL, NULL);
@@ -193,6 +208,8 @@ void ResizeD3D()
 	}
 	d3dpp.SwapEffect = D3DSWAPEFFECT_DISCARD;
 	d3dpp.hDeviceWindow = hwnd;	
+	d3dpp.EnableAutoDepthStencil = TRUE;
+	d3dpp.AutoDepthStencilFormat = D3DFMT_D16;
 
 	if (d3dDevice->Reset(&d3dpp) == D3DERR_DEVICELOST) MessageBox(hwnd, L"Lost", L"Error", NULL);
 }
