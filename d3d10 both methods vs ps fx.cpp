@@ -9,7 +9,7 @@ void InitD3D();
 void RenderD3D();
 void EndD3D();
 
-bool fx = true; // use vs,ps or fx
+bool fx = false; // use vs,ps or fx
 
 #define SHADER(x) #x // stringizing 
 const char* shaderSource = SHADER(
@@ -52,6 +52,8 @@ struct vertex { vec3 pos; vec4 color;	vertex(vec3 pos, vec4 color) : pos(pos), c
 
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR cmd, int show)
 {
+	if (MessageBox(NULL, L"Use FX ?", L"", MB_YESNO) == IDYES) fx = true;
+
 	WNDCLASS wc = { CS_HREDRAW | CS_VREDRAW,WndProc,0,0,hInst,LoadIcon(NULL,IDI_APPLICATION),LoadCursor(NULL, IDC_ARROW),(HBRUSH)GetStockObject(WHITE_BRUSH),NULL,L"D3D10" };
 	RegisterClass(&wc);
 
