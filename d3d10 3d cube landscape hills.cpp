@@ -366,6 +366,7 @@ void RenderD3D()
 
 	player.x += player_speed * cos(player_angle);
 	player.z += player_speed * sin(player_angle);
+	player.y= sin(player.x / 5) + ( 1.2f* cos(player.z / 5)) + 1.5f;
 		
 	XMVECTOR eye = XMVectorSet(player.x, player.y, player.z, 1.0f), lookat = XMVectorSet(player.x+(1.f*cos(player_angle)), player.y - 0.1f, player.z +(1.f*sin(player_angle)), 1.0f), up = XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f);
 	
@@ -382,10 +383,13 @@ void RenderD3D()
 	D3D10_TECHNIQUE_DESC tDesc;
 	tech->GetDesc(&tDesc);
 
-	for(float z=-50.f;z<=50.f;z+=2.2f)
-	for (float x = -50.f; x <= 50.f; x += 2.2f)
+	float diff_y;
+
+	for(float z=-50.f;z<=50.f;z+=2.f)
+	for (float x = -50.f; x <= 50.f; x += 2.f)
 	{
-		world = XMMatrixTranslation(x, sin(x/5)+cos(z/5), z);
+		diff_y = sin(x / 5) + ( 1.2f* cos(z / 5));		
+		world = XMMatrixTranslation(x,diff_y, z);
 		pWorldMatrixEffectVariable->SetMatrix((float*)&world);
 
 		for (UINT p = 0; p < tDesc.Passes; p++)
