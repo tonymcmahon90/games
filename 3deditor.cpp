@@ -11,7 +11,6 @@ struct vec3 { float x, y, z; vec3(float x, float y, float z) : x(x), y(y), z(z) 
 struct vec4 { float x, y, z, w; vec4(float x, float y, float z, float w) : x(x), y(y), z(z), w(w) {} };
 struct vertex { vec3 pos; vec4 color;	vertex(vec3 pos, vec4 color) : pos(pos), color(color) {} };
 
-
 #define SHADER(x) #x // stringizing 
 const char* shaderSource = SHADER(
 matrix World;
@@ -52,12 +51,12 @@ technique10 Render
 }
 );
 
-vec3 viewer = { 0,5.f,-10.f }, viewerlookat = { 0,0,0 };
-float angle = 0;
-int nModelVert = 0;
+vec3 viewer = { 1.f,5.f,-10.f }, viewerlookat = { 0,0,0 }; // viewer and lookat
+float angle = 0; // rotate viewer around y axis
+int nModelVert = 0; // number of verticies loaded 
 
 WCHAR txt[5000];
-TCHAR szName[MAX_PATH];
+TCHAR szName[MAX_PATH]; // file name 
 
 IDXGISwapChain* swapChain = NULL;
 ID3D10Device* d3dDevice = NULL;
@@ -115,7 +114,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR cmd, int show)
 			if (!(GetWindowLong(hwnd, GWL_STYLE) & WS_MINIMIZE))
 			{		
 				static DWORD tick = GetTickCount();
-				if (GetTickCount() < tick + 10) continue; // slow down fps
+				if (GetTickCount() < tick + 10) continue; // slow down to approx ~100fps
 				tick = GetTickCount();
 				RenderD3D();
 			}
@@ -132,10 +131,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 	{
 	case WM_KEYDOWN:
 	{
-		if (LOWORD(wparam) == 'S') { if (viewer.z < -0.5) { viewer.x *= 0.95; viewer.y *= 0.95; viewer.z *= 0.95; } return 0; }
-		if (LOWORD(wparam) == 'W') { if (viewer.z > -20) { viewer.x *= 1.05; viewer.y *= 1.05; viewer.z *= 1.05; } return 0; }
+		if (LOWORD(wparam) == 'S') { if (viewer.z < -0.5) { viewer.x *= 0.95; viewer.y *= 0.95; viewer.z *= 0.95; } return 0; } // zoom out
+		if (LOWORD(wparam) == 'W') { if (viewer.z > -20) { viewer.x *= 1.05; viewer.y *= 1.05; viewer.z *= 1.05; } return 0; } // zoom in
 		if (LOWORD(wparam) == 'A') {
-			XMVECTOR rot = XMVectorSet(viewer.x, viewer.y, viewer.z, 1.0f),left=XMVectorSet(0,0.05,0,1);			
+			XMVECTOR rot = XMVectorSet(viewer.x, viewer.y, viewer.z, 1.0f),left=XMVectorSet(0,0.01745,0,1); // rotate ~ 1 degrees 
 			rot = XMVector3Rotate(rot, left);
 			viewer.x = XMVectorGetX(rot);			
 			viewer.y = XMVectorGetY(rot);			
@@ -143,7 +142,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 			return 0;
 		}
 		if (LOWORD(wparam) == 'D') {
-			XMVECTOR rot = XMVectorSet(viewer.x, viewer.y, viewer.z, 1.0f), right = XMVectorSet(0, -0.05, 0, 1);			
+			XMVECTOR rot = XMVectorSet(viewer.x, viewer.y, viewer.z, 1.0f), right = XMVectorSet(0, -0.01745, 0, 1);			
 			rot = XMVector3Rotate(rot, right);
 			viewer.x = XMVectorGetX(rot);			
 			viewer.y = XMVectorGetY(rot);			
@@ -156,8 +155,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 		if (LOWORD(wparam) == VK_ESCAPE) { PostQuitMessage(0); return 0; }
 		return 0;
 	}
-	case WM_SIZE: ResizeD3D(); return 0;
-
+	case WM_SIZE:
+	{
+		if (!(GetWindowLong(hwnd, GWL_STYLE) & WS_MINIMIZE)) ResizeD3D(); return 0;
+	}
 	case WM_GETMINMAXINFO:
 	{
 		MINMAXINFO* pMMI = (MINMAXINFO*)lparam;
@@ -166,8 +167,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 		return 0;
 	}
 	case WM_DROPFILES: // https://github.com/gametutorials/tutorials/blob/master/Win32/Drag%20And%20Drop/Main.cpp
-	{
-		
+	{		
 		HDROP hDrop = (HDROP)wparam;
 		DragQueryFile(hDrop, 0, szName, MAX_PATH);
 		DragFinish(hDrop);
@@ -245,14 +245,10 @@ void InitD3D()
 	d3dDevice->RSSetViewports(1, &viewport);
 
 	if (FAILED(D3D10CompileEffectFromMemory((void*)shaderSource, strlen(shaderSource), NULL, NULL, NULL, NULL, NULL, &fxBlob, &fxErrors)))
-	{
-		MessageBox(hwnd, (WCHAR*)fxErrors->GetBufferPointer(), L"Compile from memory", NULL);	PostQuitMessage(0); return;
-	}
+	{ MessageBox(hwnd, (WCHAR*)fxErrors->GetBufferPointer(), L"Compile from memory", NULL);	PostQuitMessage(0); return;	}
 
 	if (FAILED(D3D10CreateEffectFromMemory(fxBlob->GetBufferPointer(), fxBlob->GetBufferSize(), NULL, d3dDevice, NULL, &fxShader)))
-	{
-		MessageBox(hwnd, L"Create from memory", NULL, NULL);	PostQuitMessage(0); return;
-	}
+	{ MessageBox(hwnd, L"Create from memory", NULL, NULL);	PostQuitMessage(0); return;	}
 
 	if (fxShader) tech = fxShader->GetTechniqueByName("Render"); else { MessageBox(hwnd, L"Render", NULL, NULL);	PostQuitMessage(0); return; }
 
@@ -280,32 +276,22 @@ void InitD3D()
 
 	for (float n = -10; n <= 10; n++)
 	{
-		verticies[nVertex++] = vertex(vec3(n,0,-10), vec4(0.7, 0.7, 0.7, 1));
+		verticies[nVertex++] = vertex(vec3(n,0,-10), vec4(0.7, 0.7, 0.7, 1)); // grid lines 
 		verticies[nVertex++] = vertex(vec3(n,0,10), vec4(0.7, 0.7, 0.7, 1));
 
 		verticies[nVertex++] = vertex(vec3(-10,0,n), vec4(0.7, 0.7, 0.7, 1));
 		verticies[nVertex++] = vertex(vec3(10,0,n), vec4(0.7, 0.7, 0.7, 1));
 	}
 
-	verticies[nVertex++] = vertex(vec3(0,0.005,0), vec4(1, 0, 0, 1)); // x 
+	verticies[nVertex++] = vertex(vec3(0,0.005,0), vec4(1, 0, 0, 1)); // x red
 	verticies[nVertex++] = vertex(vec3(1,0.005,0), vec4(1, 0, 0, 1));
 
-	verticies[nVertex++] = vertex(vec3(0,0.005,0), vec4(0, 1, 0, 1)); // y
+	verticies[nVertex++] = vertex(vec3(0,0.005,0), vec4(0, 1, 0, 1)); // y green
 	verticies[nVertex++] = vertex(vec3(0,1,0), vec4(0, 1, 0, 1));
 
-	verticies[nVertex++] = vertex(vec3(0, 0.005, 0), vec4(0, 0, 1, 1)); // z 
+	verticies[nVertex++] = vertex(vec3(0, 0.005, 0), vec4(0, 0, 1, 1)); // z blue
 	verticies[nVertex++] = vertex(vec3(0, 0.005, 1), vec4(0, 0, 1, 1));
-
-	// [84] is 21 lines * 2 points * 2 x lines, z lines   
-
-	verticies[nVertex++] = vertex(vec3(0.5, 0.5, 2.5), vec4(1, 0, 1, 1));
-	verticies[nVertex++] = vertex(vec3(1.0, 1.5, 2.5), vec4(0, 0, 1, 1));
-	verticies[nVertex++] = vertex(vec3(1.5, 0.5, 2.5), vec4(0, 1, 1, 1));
-
-	verticies[nVertex++] = vertex(vec3(0.5, 0.5, 2.5), vec4(1, 1, 1, 1));
-	verticies[nVertex++] = vertex(vec3(0.5, 1.5, 3.0), vec4(1, 0, 1, 1));
-	verticies[nVertex++] = vertex(vec3(0.5, 0.5, 3.5), vec4(1, 1, 0, 1)); //[90]
-
+	// [84] is 21 lines * 2 points * 2 x lines, z lines   	
 	vertexBuffer->Unmap();
 
 	bufferDesc.ByteWidth = sizeof(unsigned int) * 1000;
@@ -314,7 +300,7 @@ void InitD3D()
 	d3dDevice->CreateBuffer(&bufferDesc, NULL, &indexBuffer);
 	d3dDevice->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, offset);
 
-	unsigned int* i = NULL;
+	unsigned int* i = NULL; // not used yet , could make better file using indicies 
 	indexBuffer->Map(D3D10_MAP_WRITE_DISCARD, 0, (void**)&i);
 	i[0] = 0;
 	i[1] = 1;
@@ -396,7 +382,7 @@ void ResizeD3D() // https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi
 		d3dDevice->CreateRenderTargetView(backBuffer, NULL, &renderTargetView);
 		backBuffer->Release();
 
-		//
+		// also depth stencil resize 
 
 		RECT rc;
 		GetClientRect(hwnd, &rc);
