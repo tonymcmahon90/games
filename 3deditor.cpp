@@ -1,4 +1,6 @@
 #include <Windows.h>
+#include <stdio.h> // FILE 
+#include <strsafe.h> // StringCbPrintf 
 #include <d3d10.h>
 #pragma comment(lib,"d3d10.lib")
 #include <DirectXMath.h>
@@ -8,6 +10,8 @@ HWND hwnd;
 struct vec3 { float x, y, z; vec3(float x, float y, float z) : x(x), y(y), z(z) {} };
 struct vec4 { float x, y, z, w; vec4(float x, float y, float z, float w) : x(x), y(y), z(z), w(w) {} };
 struct vertex { vec3 pos; vec4 color;	vertex(vec3 pos, vec4 color) : pos(pos), color(color) {} };
+
+
 #define SHADER(x) #x // stringizing 
 const char* shaderSource = SHADER(
 matrix World;
@@ -50,8 +54,10 @@ technique10 Render
 
 vec3 viewer = { 0,5.f,-10.f }, viewerlookat = { 0,0,0 };
 float angle = 0;
+int nModelVert = 0;
 
-WCHAR txt[1000];
+WCHAR txt[5000];
+TCHAR szName[MAX_PATH];
 
 IDXGISwapChain* swapChain = NULL;
 ID3D10Device* d3dDevice = NULL;
@@ -82,13 +88,14 @@ void InitD3D();
 void RenderD3D();
 void EndD3D();
 void ResizeD3D();
+void LoadD3D();
 
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR cmd, int show)
 {
 	WNDCLASS wc = { CS_HREDRAW | CS_VREDRAW,WndProc,0,0,hInst,LoadIcon(NULL,IDI_APPLICATION),LoadCursor(NULL, IDC_ARROW),(HBRUSH)GetStockObject(WHITE_BRUSH),NULL,L"3D Editor" };
 	RegisterClass(&wc);
 
-	hwnd = CreateWindow(L"3D Editor", L"3D Editor", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, hInst, NULL);
+	hwnd = CreateWindowEx(WS_EX_ACCEPTFILES,L"3D Editor", L"3D Editor", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, hInst, NULL);
 	ShowWindow(hwnd, show);
 
 	MSG msg = {};
@@ -156,6 +163,16 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 		MINMAXINFO* pMMI = (MINMAXINFO*)lparam;
 		pMMI->ptMinTrackSize.x = 300;
 		pMMI->ptMinTrackSize.y = 300;
+		return 0;
+	}
+	case WM_DROPFILES: // https://github.com/gametutorials/tutorials/blob/master/Win32/Drag%20And%20Drop/Main.cpp
+	{
+		
+		HDROP hDrop = (HDROP)wparam;
+		DragQueryFile(hDrop, 0, szName, MAX_PATH);
+		DragFinish(hDrop);
+		MessageBox(hwnd, szName,L"Load", NULL);
+		LoadD3D();
 		return 0;
 	}
 	case WM_DESTROY:
@@ -281,13 +298,13 @@ void InitD3D()
 
 	// [84] is 21 lines * 2 points * 2 x lines, z lines   
 
-	verticies[nVertex++] = vertex(vec3(0.5, 0.5, 0.5), vec4(1, 0, 1, 1));
-	verticies[nVertex++] = vertex(vec3(1.0, 1.5, 0.5), vec4(0, 0, 1, 1));
-	verticies[nVertex++] = vertex(vec3(1.5, 0.5, 0.5), vec4(0, 1, 1, 1));
+	verticies[nVertex++] = vertex(vec3(0.5, 0.5, 2.5), vec4(1, 0, 1, 1));
+	verticies[nVertex++] = vertex(vec3(1.0, 1.5, 2.5), vec4(0, 0, 1, 1));
+	verticies[nVertex++] = vertex(vec3(1.5, 0.5, 2.5), vec4(0, 1, 1, 1));
 
-	verticies[nVertex++] = vertex(vec3(0.5, 0.5, 0.5), vec4(1, 1, 1, 1));
-	verticies[nVertex++] = vertex(vec3(0.5, 1.5, 1.0), vec4(1, 0, 1, 1));
-	verticies[nVertex++] = vertex(vec3(0.5, 0.5, 1.5), vec4(1, 1, 0, 1));
+	verticies[nVertex++] = vertex(vec3(0.5, 0.5, 2.5), vec4(1, 1, 1, 1));
+	verticies[nVertex++] = vertex(vec3(0.5, 1.5, 3.0), vec4(1, 0, 1, 1));
+	verticies[nVertex++] = vertex(vec3(0.5, 0.5, 3.5), vec4(1, 1, 0, 1)); //[90]
 
 	vertexBuffer->Unmap();
 
@@ -306,8 +323,6 @@ void InitD3D()
 	i[4] = 2;
 	i[5] = 3;
 	i[6] = 4;
-	
-
 	indexBuffer->Unmap();
 
 	D3D10_RASTERIZER_DESC rasterizerDesc;
@@ -358,15 +373,18 @@ void RenderD3D()
 	{
 		tech->GetPassByIndex(p)->Apply(0);
 		//d3dDevice->DrawIndexed(36, 0, 0);
+		UINT stride = sizeof(vertex);	UINT offset = 0;	d3dDevice->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
 		d3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_LINELIST);
 		d3dDevice->Draw(90, 0); // draw grid 84 points, xyz lines 6 points
 		d3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		d3dDevice->Draw(6, 90);
+		//d3dDevice->Draw(6, 90); // just for testing
+		d3dDevice->IASetVertexBuffers(0, 1, &vertexModelBuffer, &stride, &offset);
+		d3dDevice->Draw(nModelVert,0);
 	}
 	swapChain->Present(0, 0);
 }
 
-void ResizeD3D()
+void ResizeD3D() // https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi/d3d10-graphics-programming-guide-dxgi#handling-window-resizing 
 {
 	if (swapChain)
 	{
@@ -423,6 +441,55 @@ void ResizeD3D()
 
 		d3dDevice->RSSetViewports(1, &vp);
 	}
+}
+
+void LoadD3D()
+{
+	/*HANDLE hFile;
+	hFile = CreateFile(szName, GENERIC_READ, FILE_SHARE_READ, NULL,OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,NULL);
+	if (hFile == INVALID_HANDLE_VALUE) { MessageBox(hwnd, szName, L"Can't open file", MB_OK); return ; }
+	char buffer[5000],szName2[5000];	
+	DWORD toread = GetFileSize(hFile,NULL), read;
+	BOOL errorfile;
+	errorfile = ReadFile(hFile, &buffer, toread, &read, NULL);
+	MessageBoxA(hwnd, buffer, "Read", NULL);
+	CloseHandle(hFile);*/
+
+	if (vertexModelBuffer) vertexModelBuffer->Release();
+
+	D3D10_BUFFER_DESC bufferDesc;
+	bufferDesc.Usage = D3D10_USAGE_DYNAMIC;
+	bufferDesc.ByteWidth = sizeof(vertex) * 1000;
+	bufferDesc.BindFlags = D3D10_BIND_VERTEX_BUFFER;
+	bufferDesc.CPUAccessFlags = D3D10_CPU_ACCESS_WRITE;
+	bufferDesc.MiscFlags = 0;
+	d3dDevice->CreateBuffer(&bufferDesc, NULL, &vertexModelBuffer);
+
+	//UINT stride = sizeof(vertex);	UINT offset = 0;	d3dDevice->IASetVertexBuffers(0, 1, &vertexModelBuffer, &stride, &offset);
+
+	char szNamec[5000];
+	FILE* file;
+	size_t conv;
+	wcstombs_s(&conv, szNamec,MAX_PATH, szName, MAX_PATH);
+	fopen_s(&file,szNamec, "r");
+	int nAdd,nVertex=0;
+	fscanf_s(file, "%d\n", &nAdd); // number of verticies to add 
+	StringCbPrintfW(txt, 5000, L"%d Verticies\n", nAdd);
+	nModelVert = nAdd; // for rendering later
+
+	float x, y, z, r, g, b, a;
+	vertex* verticies;
+	vertexModelBuffer->Map(D3D10_MAP_WRITE_DISCARD, 0, (void**)&verticies);
+
+	for (int toAdd = 0; toAdd < nAdd; toAdd++)
+	{
+		fscanf_s(file, "%f,%f,%f,%f,%f,%f,%f", &x, &y, &z, &r, &g, &b, &a);
+		StringCbPrintfW(txt, 5000, L"%s %0.1f %0.1f %0.1f\n", txt, x, y, z);
+		verticies[nVertex++] = vertex(vec3(x, y, z), vec4(r, g, b, a));
+	}	
+	vertexModelBuffer->Unmap();
+	MessageBox(hwnd, txt, L"Read", NULL);
+	fclose(file);
 }
 
 void EndD3D()
