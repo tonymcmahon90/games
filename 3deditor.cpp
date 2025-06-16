@@ -57,6 +57,8 @@ technique10 Render
 vec3 viewer = { 1.f,5.f,-10.f }, viewerlookat = { 0,0,0 }; // viewer and lookat
 int nModelVert = 0,nModelInd=0; // number of verticies, indicies loaded 
 bool wireframe = false; // wireframe mode 
+bool darkmode = false;
+bool showlines = true;
 
 WCHAR txt[5000]; // tmp text
 TCHAR szName[MAX_PATH]; // file name 
@@ -131,42 +133,107 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR cmd, int show)
 
 float distance()
 {
-	float xy = sqrt((viewer.x * viewer.x) + (viewer.y * viewer.y));
-	float z= sqrt((xy * xy) + (viewer.z * viewer.z));
+	float xy = sqrt(((viewer.x-viewerlookat.x) * (viewer.x-viewerlookat.x)) + ((viewer.y-viewerlookat.y) * (viewer.y-viewerlookat.y)));
+	float z= sqrt((xy * xy) + ((viewer.z-viewerlookat.z) * (viewer.z-viewerlookat.z)));
 	return z;
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 {
+	static bool shift = false;
+
 	switch (message)
 	{
 	case WM_KEYDOWN:
 	{
-		if (LOWORD(wparam) == 'F') { wireframe = !wireframe; return 0; }
-		if (LOWORD(wparam) == 'S') { if (distance() > 0.5f) { viewer.x *= 0.95; viewer.y *= 0.95; viewer.z *= 0.95; } return 0; } // zoom in
-		if (LOWORD(wparam) == 'W') { if (distance() < 20.f) { viewer.x *= 1.05; viewer.y *= 1.05; viewer.z *= 1.05; } return 0; } // zoom out
-		if (LOWORD(wparam) == 'A') {
-			XMVECTOR rot = XMVectorSet(viewer.x, viewer.y, viewer.z, 1.0f),left=XMVectorSet(0,0.01745,0,1); // rotate ~ 1 degrees 
-			rot = XMVector3Rotate(rot, left);
-			viewer.x = XMVectorGetX(rot);			
-			viewer.y = XMVectorGetY(rot);			
-			viewer.z = XMVectorGetZ(rot);
+		if (LOWORD(wparam) == 'F') 
+		{ 
+			wireframe = !wireframe; 
+			return 0; 
+		}
+		if (LOWORD(wparam) == 'M')
+		{
+			darkmode = !darkmode;
 			return 0;
 		}
-		if (LOWORD(wparam) == 'D') {
-			XMVECTOR rot = XMVectorSet(viewer.x, viewer.y, viewer.z, 1.0f), right = XMVectorSet(0, -0.01745, 0, 1);			
-			rot = XMVector3Rotate(rot, right);
-			viewer.x = XMVectorGetX(rot);			
-			viewer.y = XMVectorGetY(rot);			
-			viewer.z = XMVectorGetZ(rot);
+		if (LOWORD(wparam) == 'L')
+		{
+			showlines = !showlines;
 			return 0;
 		}
-		if (LOWORD(wparam) == 'Q') { viewer.y += 0.1; return 0; }
-		if (LOWORD(wparam) == 'Z') { viewer.y -= 0.1; return 0; }
+		if (LOWORD(wparam) == 'S')
+		{
+			if (!shift)
+			{
+				if (distance() <  30.f) // zoom out
+				{ 
+					viewer.x+=(( viewer.x-viewerlookat.x) * 0.05f); 
+					viewer.y+=(( viewer.y-viewerlookat.y) * 0.05f); 
+					viewer.z+=(( viewer.z-viewerlookat.z) * 0.05f); 
+				} 
+			}
+			else
+			{
+				viewerlookat.z += 0.1f;
+			}
+			return 0;
+		}
+		if (LOWORD(wparam) == 'W')
+		{
+			if(!shift)
+			{
+				if (distance() > 0.5f) // zoom in
+				{ 
+					viewer.x -= ((viewer.x - viewerlookat.x) * 0.05f);
+					viewer.y -= ((viewer.y - viewerlookat.y) * 0.05f);
+					viewer.z -= ((viewer.z - viewerlookat.z) * 0.05f);
+				} 
+			} 
+			else
+			{
+				viewerlookat.z -= 0.1f;
+			}
+			return 0;
+		}
+		if (LOWORD(wparam) == 'A') 
+		{
+			if (!shift)
+			{
+				XMVECTOR rot = XMVectorSet(viewer.x, viewer.y, viewer.z, 1.0f), left = XMVectorSet(0, 0.01745f, 0, 1); // rotate ~ 1 degrees 
+				rot = XMVector3Rotate(rot, left);
+				viewer.x = XMVectorGetX(rot);
+				viewer.y = XMVectorGetY(rot);
+				viewer.z = XMVectorGetZ(rot);
+			}
+			else
+			{
+				viewerlookat.x -= 0.1f;
+			}
+			return 0;
+		}
+		if (LOWORD(wparam) == 'D') 
+		{
+			if (!shift)
+			{
+				XMVECTOR rot = XMVectorSet(viewer.x, viewer.y, viewer.z, 1.0f), right = XMVectorSet(0, -0.01745f, 0, 1);
+				rot = XMVector3Rotate(rot, right);
+				viewer.x = XMVectorGetX(rot);
+				viewer.y = XMVectorGetY(rot);
+				viewer.z = XMVectorGetZ(rot);
+			}
+			else
+			{
+				viewerlookat.x += 0.1f;
+			}
+			return 0;			
+		}
+		if (LOWORD(wparam) == 'Q') { if (!shift) viewer.y += 0.1f; else viewerlookat.y += 0.1f; return 0; }
+		if (LOWORD(wparam) == 'Z') { if (!shift) viewer.y -= 0.1f; else viewerlookat.y -= 0.1f; return 0; }
+		if (LOWORD(wparam) == VK_ESCAPE) { PostQuitMessage(0); return 0; }
+		if (LOWORD(wparam) == VK_SHIFT){ shift = !shift; return 0; }
 	}
 	case WM_KEYUP:
-	{
-		if (LOWORD(wparam) == VK_ESCAPE) { PostQuitMessage(0); return 0; }
+	{			
 		return 0;
 	}
 	case WM_SIZE:
@@ -220,7 +287,8 @@ void InitD3D()
 	if (FAILED(hr)) { MessageBox(hwnd, L"Create Device", NULL, NULL); PostQuitMessage(0); return; }
 
 	swapChain->GetBuffer(0, __uuidof(ID3D10Texture2D), (LPVOID*)&backBuffer);
-	d3dDevice->CreateRenderTargetView(backBuffer, NULL, &renderTargetView);
+	if(backBuffer)
+		d3dDevice->CreateRenderTargetView(backBuffer, NULL, &renderTargetView);
 	backBuffer->Release();
 
 	D3D10_TEXTURE2D_DESC descDepth;
@@ -290,11 +358,11 @@ void InitD3D()
 
 	for (float n = -10; n <= 10; n++)
 	{
-		verticies[nVertex++] = vertex(vec3(n,0,-10), vec4(0.7, 0.7, 0.7, 1)); // grid lines 
-		verticies[nVertex++] = vertex(vec3(n,0,10), vec4(0.7, 0.7, 0.7, 1));
+		verticies[nVertex++] = vertex(vec3(n,0,-10), vec4(0.7f, 0.7f, 0.7f, 1)); // grid lines 
+		verticies[nVertex++] = vertex(vec3(n,0,10), vec4(0.7f, 0.7f, 0.7f, 1));
 
-		verticies[nVertex++] = vertex(vec3(-10,0,n), vec4(0.7, 0.7, 0.7, 1));
-		verticies[nVertex++] = vertex(vec3(10,0,n), vec4(0.7, 0.7, 0.7, 1));
+		verticies[nVertex++] = vertex(vec3(-10,0,n), vec4(0.7f, 0.7f, 0.7f, 1));
+		verticies[nVertex++] = vertex(vec3(10,0,n), vec4(0.7f, 0.7f, 0.7f, 1));
 	}
 
 	verticies[nVertex++] = vertex(vec3(0,0.005,0), vec4(1, 0, 0, 1)); // x red 1 unit
@@ -334,19 +402,19 @@ void RenderD3D()
 	d3dDevice->RSSetState(rasterizerState);
 
 	// matrix 3d to 2d 
-		
+
 	XMMATRIX world = XMMatrixIdentity();
 	pWorldMatrixEffectVariable->SetMatrix((float*)&world);
 
-	XMVECTOR eye = XMVectorSet(viewer.x, viewer.y, viewer.z, 1.0f), lookat = XMVectorSet(viewerlookat.x, viewerlookat.y , viewerlookat.z, 1.0f), up = XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f);
+	XMVECTOR eye = XMVectorSet(viewer.x, viewer.y, viewer.z, 1.0f), lookat = XMVectorSet(viewerlookat.x, viewerlookat.y, viewerlookat.z, 1.0f), up = XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f);
 	XMMATRIX view = { XMMatrixLookAtLH(eye,lookat,up) };
 	XMMATRIX proj = { XMMatrixPerspectiveFovLH(30.f / 57.29f,(float)rc.right / rc.bottom,0.01f,100.f) };
 
 	pViewMatrixEffectVariable->SetMatrix((float*)&view);
 	pProjectionMatrixEffectVariable->SetMatrix((float*)&proj);
 
-	float c[4] = { 0.9f, 0.9f, 0.95f, 1 };
-	d3dDevice->ClearRenderTargetView(renderTargetView, c);
+	float  lightmodeclear[] = {0.9f, 0.9f, 0.95f, 1}, darkmodeclear[]={ 0.2f, 0.2f, 0.2f, 1 };	
+	d3dDevice->ClearRenderTargetView(renderTargetView,darkmode ? darkmodeclear : lightmodeclear);
 	d3dDevice->ClearDepthStencilView(depthStencilView, D3D10_CLEAR_DEPTH, 1.0f, 0);
 
 	D3D10_TECHNIQUE_DESC tDesc;
@@ -356,10 +424,19 @@ void RenderD3D()
 	{
 		tech->GetPassByIndex(p)->Apply(0);
 
-		UINT stride = sizeof(vertex);	UINT offset = 0;			
-		d3dDevice->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset); // draw lines 
-		d3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_LINELIST);
-		d3dDevice->Draw(90, 0); // draw grid 84 points, xyz lines 6 points
+		UINT stride = sizeof(vertex);	UINT offset = 0;	
+		if (showlines)
+		{
+			d3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_LINELIST);
+			d3dDevice->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset); // draw lines 		
+			d3dDevice->Draw(90, 0); // draw grid 84 points, xyz lines 6 points
+		}
+		else
+		{
+			d3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_LINELIST);
+			d3dDevice->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset); // draw lines 		
+			d3dDevice->Draw(6, 84); // draw xyz lines 6 points
+		}
 
 		d3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);		
 		d3dDevice->IASetVertexBuffers(0, 1, &vertexModelBuffer, &stride, &offset);
@@ -380,7 +457,7 @@ void ResizeD3D() // https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi
 		swapChain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
 
 		swapChain->GetBuffer(0, __uuidof(ID3D10Texture2D), (void**)&backBuffer);
-		d3dDevice->CreateRenderTargetView(backBuffer, NULL, &renderTargetView);
+		if(backBuffer)d3dDevice->CreateRenderTargetView(backBuffer, NULL, &renderTargetView);
 		backBuffer->Release();
 
 		// also depth stencil resize 
@@ -458,44 +535,46 @@ void LoadD3D()
 	size_t conv;
 	wcstombs_s(&conv, szNamec,MAX_PATH, szName, MAX_PATH);
 	fopen_s(&file,szNamec, "r");
-
-	int nVertex=0,nIndicies=0;
-	fscanf_s(file, "%d,%d\n", &nVertex,&nIndicies); // number of verticies to add 
-	StringCbPrintfW(txt, 5000, L"%d Verticies %d Indicies\n", nVertex,nIndicies);
-	nModelVert = nVertex; // for rendering later
-	nModelInd = nIndicies;
-
-	// model Verticies 
-
-	float x, y, z, r, g, b, a;
-	vertex* verticies;
-	vertexModelBuffer->Map(D3D10_MAP_WRITE_DISCARD, 0, (void**)&verticies);
-
-	for (int toAdd = 0; toAdd < nVertex; toAdd++)
+	if (file)
 	{
-		fscanf_s(file, "%f,%f,%f,%f,%f,%f,%f", &x, &y, &z, &r, &g, &b, &a);
-		StringCbPrintfW(txt, 5000, L"%s %0.1f %0.1f %0.1f\n", txt, x, y, z);
-		verticies[toAdd] = vertex(vec3(x, y, z), vec4(r, g, b, a));
-	}	
-	vertexModelBuffer->Unmap();
+		int nVertex = 0, nIndicies = 0;
+		fscanf_s(file, "%d,%d\n", &nVertex, &nIndicies); // number of verticies to add 
+		StringCbPrintfW(txt, 5000, L"%d Verticies %d Indicies\n", nVertex, nIndicies);
+		nModelVert = nVertex; // for rendering later
+		nModelInd = nIndicies;
 
-	// model Indicies 
+		// model Verticies 
 
-	unsigned int* i = NULL; 
-	unsigned int ind;
+		float x, y, z, r, g, b, a;
+		vertex* verticies;
+		vertexModelBuffer->Map(D3D10_MAP_WRITE_DISCARD, 0, (void**)&verticies);
 
-	indexModelBuffer->Map(D3D10_MAP_WRITE_DISCARD, 0, (void**)&i);
+		for (int toAdd = 0; toAdd < nVertex; toAdd++)
+		{
+			fscanf_s(file, "%f,%f,%f,%f,%f,%f,%f", &x, &y, &z, &r, &g, &b, &a);
+			StringCbPrintfW(txt, 5000, L"%s %0.1f %0.1f %0.1f\n", txt, x, y, z);
+			verticies[toAdd] = vertex(vec3(x, y, z), vec4(r, g, b, a));
+		}
+		vertexModelBuffer->Unmap();
 
-	for (int toAdd = 0; toAdd < nIndicies; toAdd++)
-	{
-		fscanf_s(file, "%d\n", &ind);
-		StringCbPrintfW(txt, 5000, L"%s %d\n", txt, ind);
-		i[toAdd] = ind;
+		// model Indicies 
+
+		unsigned int* i = NULL;
+		unsigned int ind;
+
+		indexModelBuffer->Map(D3D10_MAP_WRITE_DISCARD, 0, (void**)&i);
+
+		for (int toAdd = 0; toAdd < nIndicies; toAdd++)
+		{
+			fscanf_s(file, "%d\n", &ind);
+			StringCbPrintfW(txt, 5000, L"%s %d\n", txt, ind);
+			i[toAdd] = ind;
+		}
+		indexModelBuffer->Unmap();
+
+		MessageBox(hwnd, txt, L"Read", NULL);
+		fclose(file);
 	}
-	indexModelBuffer->Unmap();
-
-	MessageBox(hwnd, txt, L"Read", NULL);
-	fclose(file);
 }
 
 void EndD3D()
