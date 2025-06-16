@@ -1,3 +1,6 @@
+// Simple 3d model viewer / editor, drag and drop model file 
+// Q up, Z down, A turn left, D turn right, W zoom in, S zoom out, F toggle wireframe, ESC quit
+
 #include <Windows.h>
 #include <stdio.h> // FILE 
 #include <strsafe.h> // StringCbPrintf 
@@ -52,10 +55,10 @@ technique10 Render
 );
 
 vec3 viewer = { 1.f,5.f,-10.f }, viewerlookat = { 0,0,0 }; // viewer and lookat
-float angle = 0; // rotate viewer around y axis
-int nModelVert = 0; // number of verticies loaded 
+int nModelVert = 0,nModelInd=0; // number of verticies, indicies loaded 
+bool wireframe = false; // wireframe mode 
 
-WCHAR txt[5000];
+WCHAR txt[5000]; // tmp text
 TCHAR szName[MAX_PATH]; // file name 
 
 IDXGISwapChain* swapChain = NULL;
@@ -73,7 +76,7 @@ ID3D10EffectMatrixVariable* pViewMatrixEffectVariable = NULL;
 ID3D10EffectMatrixVariable* pProjectionMatrixEffectVariable = NULL;
 ID3D10EffectMatrixVariable* pWorldMatrixEffectVariable = NULL;
 ID3D10Texture2D* backBuffer = NULL, * depthStencil = NULL;
-ID3D10Buffer* indexBuffer = NULL;
+ID3D10Buffer* indexModelBuffer = NULL;
 ID3D10DepthStencilView* depthStencilView = NULL;
 
 D3D10_INPUT_ELEMENT_DESC layout[] =
@@ -91,18 +94,18 @@ void LoadD3D();
 
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR cmd, int show)
 {
-	SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_SYSTEM_AWARE);
+	SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_SYSTEM_AWARE); // looks better not scaled 
 
 	WNDCLASS wc = { CS_HREDRAW | CS_VREDRAW,WndProc,0,0,hInst,LoadIcon(NULL,IDI_APPLICATION),LoadCursor(NULL, IDC_ARROW),(HBRUSH)GetStockObject(WHITE_BRUSH),NULL,L"3D Editor" };
 	RegisterClass(&wc);
 
 	hwnd = CreateWindowEx(WS_EX_ACCEPTFILES,L"3D Editor", L"3D Editor", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, hInst, NULL);
 	ShowWindow(hwnd, show);
-
-	MSG msg = {};
+		
+	MSG msg; // before InitD3D  
 
 	InitD3D();
-	
+
 	while (true)
 	{
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
@@ -115,16 +118,22 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR cmd, int show)
 		{
 			if (!(GetWindowLong(hwnd, GWL_STYLE) & WS_MINIMIZE))
 			{		
-				static DWORD tick = GetTickCount();
-				if (GetTickCount() < tick + 10) continue; // slow down to approx ~100fps
-				tick = GetTickCount();
+				static ULONGLONG tick = GetTickCount64();
+				if (GetTickCount64() < tick + 10) continue; // slow down to approx ~100fps 10ms 
+				tick = GetTickCount64();
 				RenderD3D();
 			}
 		}
 	}
-
 	EndD3D();
 	return 0;
+}
+
+float distance()
+{
+	float xy = sqrt((viewer.x * viewer.x) + (viewer.y * viewer.y));
+	float z= sqrt((xy * xy) + (viewer.z * viewer.z));
+	return z;
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
@@ -133,8 +142,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 	{
 	case WM_KEYDOWN:
 	{
-		if (LOWORD(wparam) == 'S') { if (viewer.z < -0.5) { viewer.x *= 0.95; viewer.y *= 0.95; viewer.z *= 0.95; } return 0; } // zoom out
-		if (LOWORD(wparam) == 'W') { if (viewer.z > -20) { viewer.x *= 1.05; viewer.y *= 1.05; viewer.z *= 1.05; } return 0; } // zoom in
+		if (LOWORD(wparam) == 'F') { wireframe = !wireframe; return 0; }
+		if (LOWORD(wparam) == 'S') { if (distance() > 0.5f) { viewer.x *= 0.95; viewer.y *= 0.95; viewer.z *= 0.95; } return 0; } // zoom in
+		if (LOWORD(wparam) == 'W') { if (distance() < 20.f) { viewer.x *= 1.05; viewer.y *= 1.05; viewer.z *= 1.05; } return 0; } // zoom out
 		if (LOWORD(wparam) == 'A') {
 			XMVECTOR rot = XMVectorSet(viewer.x, viewer.y, viewer.z, 1.0f),left=XMVectorSet(0,0.01745,0,1); // rotate ~ 1 degrees 
 			rot = XMVector3Rotate(rot, left);
@@ -151,6 +161,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 			viewer.z = XMVectorGetZ(rot);
 			return 0;
 		}
+		if (LOWORD(wparam) == 'Q') { viewer.y += 0.1; return 0; }
+		if (LOWORD(wparam) == 'Z') { viewer.y -= 0.1; return 0; }
 	}
 	case WM_KEYUP:
 	{
@@ -285,37 +297,30 @@ void InitD3D()
 		verticies[nVertex++] = vertex(vec3(10,0,n), vec4(0.7, 0.7, 0.7, 1));
 	}
 
-	verticies[nVertex++] = vertex(vec3(0,0.005,0), vec4(1, 0, 0, 1)); // x red
+	verticies[nVertex++] = vertex(vec3(0,0.005,0), vec4(1, 0, 0, 1)); // x red 1 unit
 	verticies[nVertex++] = vertex(vec3(1,0.005,0), vec4(1, 0, 0, 1));
 
-	verticies[nVertex++] = vertex(vec3(0,0.005,0), vec4(0, 1, 0, 1)); // y green
+	verticies[nVertex++] = vertex(vec3(0,0.005,0), vec4(0, 1, 0, 1)); // y green 1 unit
 	verticies[nVertex++] = vertex(vec3(0,1,0), vec4(0, 1, 0, 1));
 
-	verticies[nVertex++] = vertex(vec3(0, 0.005, 0), vec4(0, 0, 1, 1)); // z blue
+	verticies[nVertex++] = vertex(vec3(0, 0.005, 0), vec4(0, 0, 1, 1)); // z blue 1 unit
 	verticies[nVertex++] = vertex(vec3(0, 0.005, 1), vec4(0, 0, 1, 1));
-	// [84] is 21 lines * 2 points * 2 x lines, z lines   	
+	// [84] is 21 lines * 2 points * 2 x lines, z lines , [90] is 3 lines x,y,z   	
 	vertexBuffer->Unmap();
-
-	bufferDesc.ByteWidth = sizeof(unsigned int) * 1000;
-	bufferDesc.BindFlags = D3D10_BIND_INDEX_BUFFER;
-
-	d3dDevice->CreateBuffer(&bufferDesc, NULL, &indexBuffer);
-	d3dDevice->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, offset);
-
-	unsigned int* i = NULL; // not used yet , could make better file using indicies 
-	indexBuffer->Map(D3D10_MAP_WRITE_DISCARD, 0, (void**)&i);
-	i[0] = 0;
-	i[1] = 1;
-	i[2] = 2;
-	i[3] = 0;
-	i[4] = 2;
-	i[5] = 3;
-	i[6] = 4;
-	indexBuffer->Unmap();
+	
+	//create matrix effect pointers
+	pViewMatrixEffectVariable = fxShader->GetVariableByName("View")->AsMatrix();
+	pProjectionMatrixEffectVariable = fxShader->GetVariableByName("Projection")->AsMatrix();
+	pWorldMatrixEffectVariable = fxShader->GetVariableByName("World")->AsMatrix();
+}
+void RenderD3D()
+{
+	RECT rc;
+	GetClientRect(hwnd, &rc);
 
 	D3D10_RASTERIZER_DESC rasterizerDesc;
 	rasterizerDesc.CullMode = D3D10_CULL_NONE;
-	rasterizerDesc.FillMode = D3D10_FILL_SOLID;
+	if (!wireframe) rasterizerDesc.FillMode = D3D10_FILL_SOLID; else rasterizerDesc.FillMode = D3D10_FILL_WIREFRAME;
 	rasterizerDesc.FrontCounterClockwise = true;
 	rasterizerDesc.DepthBias = false;
 	rasterizerDesc.DepthBiasClamp = 0;
@@ -328,17 +333,7 @@ void InitD3D()
 	d3dDevice->CreateRasterizerState(&rasterizerDesc, &rasterizerState);
 	d3dDevice->RSSetState(rasterizerState);
 
-	d3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_LINELIST); // can use STRIP and 0xffffffff; 
-
-	//create matrix effect pointers
-	pViewMatrixEffectVariable = fxShader->GetVariableByName("View")->AsMatrix();
-	pProjectionMatrixEffectVariable = fxShader->GetVariableByName("Projection")->AsMatrix();
-	pWorldMatrixEffectVariable = fxShader->GetVariableByName("World")->AsMatrix();
-}
-void RenderD3D()
-{
-	RECT rc;
-	GetClientRect(hwnd, &rc);
+	// matrix 3d to 2d 
 		
 	XMMATRIX world = XMMatrixIdentity();
 	pWorldMatrixEffectVariable->SetMatrix((float*)&world);
@@ -360,14 +355,18 @@ void RenderD3D()
 	for (UINT p = 0; p < tDesc.Passes; p++)
 	{
 		tech->GetPassByIndex(p)->Apply(0);
-		//d3dDevice->DrawIndexed(36, 0, 0);
-		UINT stride = sizeof(vertex);	UINT offset = 0;	d3dDevice->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+
+		UINT stride = sizeof(vertex);	UINT offset = 0;			
+		d3dDevice->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset); // draw lines 
 		d3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_LINELIST);
 		d3dDevice->Draw(90, 0); // draw grid 84 points, xyz lines 6 points
-		d3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		//d3dDevice->Draw(6, 90); // just for testing
+
+		d3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);		
 		d3dDevice->IASetVertexBuffers(0, 1, &vertexModelBuffer, &stride, &offset);
-		d3dDevice->Draw(nModelVert,0);
+		if(nModelInd==0) d3dDevice->Draw(nModelVert,0);
+
+		d3dDevice->IASetIndexBuffer(indexModelBuffer, DXGI_FORMAT_R32_UINT, offset);
+		if(nModelInd>0)d3dDevice->DrawIndexed(nModelInd, 0, 0);
 	}
 	swapChain->Present(0, 0);
 }
@@ -433,16 +432,7 @@ void ResizeD3D() // https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi
 
 void LoadD3D()
 {
-	/*HANDLE hFile;
-	hFile = CreateFile(szName, GENERIC_READ, FILE_SHARE_READ, NULL,OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,NULL);
-	if (hFile == INVALID_HANDLE_VALUE) { MessageBox(hwnd, szName, L"Can't open file", MB_OK); return ; }
-	char buffer[5000],szName2[5000];	
-	DWORD toread = GetFileSize(hFile,NULL), read;
-	BOOL errorfile;
-	errorfile = ReadFile(hFile, &buffer, toread, &read, NULL);
-	MessageBoxA(hwnd, buffer, "Read", NULL);
-	CloseHandle(hFile);*/
-
+	// create new vertex buffer 
 	if (vertexModelBuffer) vertexModelBuffer->Release();
 
 	D3D10_BUFFER_DESC bufferDesc;
@@ -453,29 +443,57 @@ void LoadD3D()
 	bufferDesc.MiscFlags = 0;
 	d3dDevice->CreateBuffer(&bufferDesc, NULL, &vertexModelBuffer);
 
-	//UINT stride = sizeof(vertex);	UINT offset = 0;	d3dDevice->IASetVertexBuffers(0, 1, &vertexModelBuffer, &stride, &offset);
+	// create new index buffer
+	if (indexModelBuffer) indexModelBuffer->Release();
 
+	bufferDesc.ByteWidth = sizeof(unsigned int) * 1000;
+	bufferDesc.BindFlags = D3D10_BIND_INDEX_BUFFER;
+
+	d3dDevice->CreateBuffer(&bufferDesc, NULL, &indexModelBuffer);
+
+	// how many verticies, indicies 
+	
 	char szNamec[5000];
 	FILE* file;
 	size_t conv;
 	wcstombs_s(&conv, szNamec,MAX_PATH, szName, MAX_PATH);
 	fopen_s(&file,szNamec, "r");
-	int nAdd,nVertex=0;
-	fscanf_s(file, "%d\n", &nAdd); // number of verticies to add 
-	StringCbPrintfW(txt, 5000, L"%d Verticies\n", nAdd);
-	nModelVert = nAdd; // for rendering later
+
+	int nVertex=0,nIndicies=0;
+	fscanf_s(file, "%d,%d\n", &nVertex,&nIndicies); // number of verticies to add 
+	StringCbPrintfW(txt, 5000, L"%d Verticies %d Indicies\n", nVertex,nIndicies);
+	nModelVert = nVertex; // for rendering later
+	nModelInd = nIndicies;
+
+	// model Verticies 
 
 	float x, y, z, r, g, b, a;
 	vertex* verticies;
 	vertexModelBuffer->Map(D3D10_MAP_WRITE_DISCARD, 0, (void**)&verticies);
 
-	for (int toAdd = 0; toAdd < nAdd; toAdd++)
+	for (int toAdd = 0; toAdd < nVertex; toAdd++)
 	{
 		fscanf_s(file, "%f,%f,%f,%f,%f,%f,%f", &x, &y, &z, &r, &g, &b, &a);
 		StringCbPrintfW(txt, 5000, L"%s %0.1f %0.1f %0.1f\n", txt, x, y, z);
-		verticies[nVertex++] = vertex(vec3(x, y, z), vec4(r, g, b, a));
+		verticies[toAdd] = vertex(vec3(x, y, z), vec4(r, g, b, a));
 	}	
 	vertexModelBuffer->Unmap();
+
+	// model Indicies 
+
+	unsigned int* i = NULL; 
+	unsigned int ind;
+
+	indexModelBuffer->Map(D3D10_MAP_WRITE_DISCARD, 0, (void**)&i);
+
+	for (int toAdd = 0; toAdd < nIndicies; toAdd++)
+	{
+		fscanf_s(file, "%d\n", &ind);
+		StringCbPrintfW(txt, 5000, L"%s %d\n", txt, ind);
+		i[toAdd] = ind;
+	}
+	indexModelBuffer->Unmap();
+
 	MessageBox(hwnd, txt, L"Read", NULL);
 	fclose(file);
 }
@@ -488,7 +506,7 @@ void EndD3D()
 
 	if (depthStencilView) depthStencilView->Release();
 	if (depthStencil) depthStencil->Release();
-	if (indexBuffer) indexBuffer->Release();
+	if (indexModelBuffer) indexModelBuffer->Release();
 	if (vertexBuffer) vertexBuffer->Release();
 	if (vertexLayout) vertexLayout->Release();
 	if (rasterizerState) rasterizerState->Release();
