@@ -113,6 +113,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		{
 			glViewport(0, 0, HIWORD(lParam), HIWORD(lParam)); return 0;  // x:y 1:1
 		}
+	//case WM_EXITSIZEMOVE:		if(!fullscreen) MoveWindow(hwnd, windowrect.left, windowrect.top, windowrect.right - windowrect.left, windowrect.right - windowrect.left, TRUE);		return 0;
 	case WM_GETMINMAXINFO:
 	{
 		MINMAXINFO* pMMI = (MINMAXINFO*)lParam;
