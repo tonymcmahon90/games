@@ -11,7 +11,7 @@ HWND hwnd;
 HDC hdc;
 HGLRC hglrc;
 GLuint base;
-float click_x = 0.f, click_y = 0.f; // initial values
+float click_x = 0.f, click_y = 0.f,timer=20.0f; // initial values
 double t_diff = 0;
 int lifes = 10, score = 0;
 bool fullscreen = false, hidecursor = false, usejoystick = true, capturejoystick = true, pausegame = false, sound = true,lclick=false;
@@ -21,6 +21,7 @@ RECT windowrect;
 
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 void Render();
+void ResetGrid();
 
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int show)
 {
@@ -70,12 +71,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int show)
 	srand(GetTickCount());
 
 	// grid
-	for (int n = 0; n < 10; n++)
-		for (int m = 0; m < 10; m++)
-			grid[n][m] = rand()%10;
-	
-	for(int n=0;n<3;n++) 
-		match[n][0]= rand() % 10;
+	ResetGrid();
 
 	ShowWindow(hwnd, show);
 
@@ -185,6 +181,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	{
 		if (!capturejoystick) return 0;
 
+		if (wParam & JOY_BUTTON1) lclick = true; else lclick = false;
+
 		int xpos = LOWORD(lParam), ypos = HIWORD(lParam); // 0 to 65535 top left 0,0
 		
 		click_x = (xpos / 32767.f) - 1.f; // -1.0 left 1 right = 0 to 65535
@@ -229,6 +227,8 @@ void Render()
 	t_diff = tmp;
 	qt_prev.QuadPart = qt.QuadPart;
 
+	if(!pausegame)timer -= t_diff;
+
 	// game logic
 	
 	int n, m;
@@ -240,26 +240,29 @@ void Render()
 			b_x = -0.8f + (n * 0.11f);
 			b_y = 0.8f - (m * 0.11f);
 
-			if (click_x > b_x && click_x < b_x + 0.1f)
-				if (click_y > b_y-0.1f && click_y < b_y)
+			if (click_x > b_x && click_x < b_x + 0.11f)
+				if (click_y > b_y-0.11f && click_y < b_y)
 					if (lclick)
 					{
-						if (grid[n][m] == match[selected][0]) { match[selected][1] = grid[n][m]; selected++; }
+						if (grid[n][m] == match[selected][0]) { match[selected][1] = grid[n][m]; selected++; lclick = false; }
 					}						
 		}
 
 	// graphics 
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glBegin(GL_QUADS);
-
-	glColor3f(0.2f, 0.2f, 0.2f);
+	glBegin(GL_LINE_LOOP);
+	glColor3f(1.f, 1.f, 1.f);
 	glVertex2f(click_x-0.1f, click_y-0.1f); 
 	glVertex2f(click_x+0.1f, click_y-0.1f);
 	glVertex2f(click_x+0.1f, click_y+0.1f);
 	glVertex2f(click_x-0.1f, click_y+0.1f);
+	glEnd();
+
+	glBegin(GL_QUADS);
 
 	bool area = false;
+	int col = 0;
 	
 	for (n = 0; n < 10; n++)
 		for (m = 0; m < 10; m++)
@@ -271,11 +274,11 @@ void Render()
 			case 2: glColor3f(0, 1.f, 0); break;
 			case 3: glColor3f(0, 0, 1.f); break;
 			case 4: glColor3f(1.f, 1.f, 0); break;
-			case 5: glColor3f(0.f, 1.f, 1.f); break;
+			case 5: glColor3f(0, 1.f, 1.f); break;
 			case 6: glColor3f(1.f, 1.f, 1.f); break;
-			case 7: glColor3f(1.f, 0.f, 1.f); break;
+			case 7: glColor3f(1.f, 0, 1.f); break;
 			case 8: glColor3f(1.f, 0.5f, 0.5f); break;
-			case 9: glColor3f(0.5f, 1.f, 1.f); break;
+			case 9: glColor3f(0.5f, 0.5f, 1.f); break;
 			}
 
 			b_x = -0.8f + (n *0.11f);
@@ -283,7 +286,9 @@ void Render()
 
 			if (click_x > b_x && click_x < b_x + 0.11f)
 				if (click_y > b_y - 0.11f && click_y < b_y)
-					area = true;
+				{
+					area = true; col = grid[n][m];
+				}
 
 			if (!area) glColor3f(0.3f, 0.3f, 0.3f);
 			area = false;
@@ -307,11 +312,11 @@ void Render()
 			case 2: glColor3f(0, 1.f, 0); break;
 			case 3: glColor3f(0, 0, 1.f); break;
 			case 4: glColor3f(1.f, 1.f, 0); break;
-			case 5: glColor3f(0.f, 1.f, 1.f); break;
+			case 5: glColor3f(0, 1.f, 1.f); break;
 			case 6: glColor3f(1.f, 1.f, 1.f); break;
-			case 7: glColor3f(1.f, 0.f, 1.f); break;
+			case 7: glColor3f(1.f, 0, 1.f); break;
 			case 8: glColor3f(1.f, 0.5f, 0.5f); break;
-			case 9: glColor3f(0.5f, 1.f, 1.f); break;
+			case 9: glColor3f(0.5f, 0.5f, 1.f); break;
 			}
 
 			b_x = 0.5f + (n * 0.11f);
@@ -331,10 +336,14 @@ void Render()
 	glColor3f(1.f, 1.f, 1.f);
 	glRasterPos2f(-0.25f, 0.85f);
 		
-	sprintf_s(txt, sizeof(txt), "Select=%d Score=%d", selected, score);
+	sprintf_s(txt, sizeof(txt), "Select=%d Score=%d Lifes=%d Timer=%0.2f Col=%d", selected, score,lifes,timer,col);
 	glPrintf(txt);
 	glFlush();
 	SwapBuffers(hdc);	
+
+	if (timer <= 0) {
+		lifes--; timer = 20.f; selected = 0; ResetGrid();
+	}
 
 	bool won = true;
 	for (n = 0; n < 3; n++)
@@ -344,13 +353,24 @@ void Render()
 
 	if (won)
 	{
-		score++; selected = 0;
+		score++; selected = 0; timer = 20.0f;
+		ResetGrid();
+	}
 
-		for (n = 0; n < 10; n++)
-			for (m = 0; m < 10; m++)
-				grid[n][m] = rand() % 10;
+	if (lifes == 0) MessageBox(hwnd, L"Game Over", L"", MB_OK);
+}
 
-		for (n = 0; n < 3; n++)
-			match[n][0] = rand() % 10;
+void ResetGrid()
+{
+	int n, m;
+
+	for (n = 0; n < 10; n++)
+		for (m = 0; m < 10; m++)
+			grid[n][m] = rand() % 10;
+
+	for (n = 0; n < 3; n++)
+	{
+		match[n][0] = rand() % 10;
+		match[n][1] = 11; 
 	}
 }
