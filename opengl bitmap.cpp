@@ -130,7 +130,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 GLubyte rasters[24] = { 0xc0,0,0xc0,0,0xc0,0,0xc0,0,0xc0,0,
 					  0xff,0,0xff,0,0xc0,0,0xc0,0,0xc0,0,
-					  0xff,0xc0,0x70,0xc0 };
+					  0xff,0xc0,0xff,0xc0 };
 
 void Render()
 {
@@ -165,15 +165,15 @@ void Render()
 	glColor3f(1, 0, 0);
 	glVertex2d(50, 50);
 	glColor3f(1, 1, 0);
-	glVertex2d(100, 50);
+	glVertex2d(200, 50);
 	glColor3f(1, 0, 1);
-	glVertex2d(100, 100);
+	glVertex2d(200, 100);
 	glColor3f(0, 1, 1);
 	glVertex2d(50, 100);
 	glEnd();
 
 	glColor3f(1.f, 1.f, 1.f);
-	glRasterPos2i(20, 20);
+	glRasterPos2i(20, 75);
 	for(int n=0;n<100;n++)
 		glBitmap(10, 12, 0, 0, 11, 0, rasters);
 	
