@@ -96,4 +96,16 @@ void Render()
 	glEnd();
 	glFlush();
 	SwapBuffers(hdc);
+
+	static int frame,second;
+	frame++;
+	SYSTEMTIME systime;
+	GetLocalTime(&systime);
+	if (second != systime.wSecond)
+	{
+		sprintf_s(txt, 10000, "%dfps", frame);
+		SetWindowTextA(hwnd, txt);
+		frame = 0;
+		second = systime.wSecond;
+	}
 }
