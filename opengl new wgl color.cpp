@@ -6,6 +6,7 @@
 HWND hwnd;
 HDC hdc;
 HGLRC hglrc;
+char txt[1000];
 
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 void Render();
@@ -244,4 +245,16 @@ void Render()
 	glEnd(); */
 
 	SwapBuffers(hdc);
+
+	static int fps = 0,sec;
+	fps++;
+	SYSTEMTIME t;
+	GetSystemTime(&t);
+	if (t.wSecond != sec)
+	{
+		sprintf_s(txt, 1000, "OpenGL %d fps", fps);
+		SetWindowTextA(hwnd,txt);
+		sec = t.wSecond;
+		fps = 0;
+	}
 }
