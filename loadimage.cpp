@@ -43,6 +43,7 @@ void ShowImage()
 	SetBkMode(hdc, TRANSPARENT);
 	TextOutA(hdc, 10, 10, txt, strlen(txt));
 
+	DeleteDC(memdc);
 	ReleaseDC(hwnd,hdc);
 }
 
